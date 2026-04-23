@@ -1,0 +1,23 @@
+Use this tool to manage persistent memory across sessions.
+
+Store only durable information that will be useful later:
+- User preferences and communication style
+- Project conventions, commands, and architecture facts
+- Reusable lessons learned or environment quirks
+
+Do not store:
+- Secrets, tokens, passwords, or private keys
+- Temporary task chatter
+- Large logs or verbatim tool output
+
+Targets:
+- `user`: global memory shared across projects
+- `project`: local memory stored in the current project's `.opencode/memory/PROJECT.md`
+
+Actions:
+- `show`: inspect the current store
+- `add`: add a new entry
+- `replace`: replace one matching entry using `old_text`
+- `remove`: delete one matching entry using `old_text`
+
+Keep entries compact and information-dense.

@@ -31,6 +31,8 @@ import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
+import { Memory } from "../../src/memory"
+import { MemorySync } from "../../src/memory/sync"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "../../src/shell/shell"
@@ -53,6 +55,13 @@ const summary = Layer.succeed(
     summarize: () => Effect.void,
     diff: () => Effect.succeed([]),
     computeDiff: () => Effect.succeed([]),
+  }),
+)
+
+const memorySync = Layer.succeed(
+  MemorySync.Service,
+  MemorySync.Service.of({
+    captureCompaction: () => Effect.void,
   }),
 )
 
@@ -183,7 +192,11 @@ function makeHttp() {
   )
   const trunc = Truncate.layer.pipe(Layer.provideMerge(deps))
   const proc = SessionProcessor.layer.pipe(Layer.provide(summary), Layer.provideMerge(deps))
-  const compact = SessionCompaction.layer.pipe(Layer.provideMerge(proc), Layer.provideMerge(deps))
+  const compact = SessionCompaction.layer.pipe(
+    Layer.provide(memorySync),
+    Layer.provideMerge(proc),
+    Layer.provideMerge(deps),
+  )
   return Layer.mergeAll(
     TestLLMServer.layer,
     SessionPrompt.layer.pipe(
@@ -194,6 +207,7 @@ function makeHttp() {
       Layer.provideMerge(proc),
       Layer.provideMerge(registry),
       Layer.provideMerge(trunc),
+      Layer.provide(Memory.defaultLayer),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
       Layer.provideMerge(deps),

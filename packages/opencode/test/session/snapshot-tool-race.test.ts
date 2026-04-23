@@ -35,6 +35,8 @@ import { Command } from "../../src/command"
 import { Config } from "../../src/config"
 import { LSP } from "../../src/lsp"
 import { MCP } from "../../src/mcp"
+import { Memory } from "../../src/memory"
+import { MemorySync } from "../../src/memory/sync"
 import { Permission } from "../../src/permission"
 import { Plugin } from "../../src/plugin"
 import { Provider as ProviderSvc } from "../../src/provider"
@@ -57,6 +59,13 @@ import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
 
 void Log.init({ print: false })
+
+const memorySync = Layer.succeed(
+  MemorySync.Service,
+  MemorySync.Service.of({
+    captureCompaction: () => Effect.void,
+  }),
+)
 
 const mcp = Layer.succeed(
   MCP.Service,
@@ -136,7 +145,11 @@ function makeHttp() {
   )
   const trunc = Truncate.layer.pipe(Layer.provideMerge(deps))
   const proc = SessionProcessor.layer.pipe(Layer.provide(SessionSummary.defaultLayer), Layer.provideMerge(deps))
-  const compact = SessionCompaction.layer.pipe(Layer.provideMerge(proc), Layer.provideMerge(deps))
+  const compact = SessionCompaction.layer.pipe(
+    Layer.provide(memorySync),
+    Layer.provideMerge(proc),
+    Layer.provideMerge(deps),
+  )
   return Layer.mergeAll(
     TestLLMServer.layer,
     SessionSummary.defaultLayer,
@@ -148,6 +161,7 @@ function makeHttp() {
       Layer.provideMerge(proc),
       Layer.provideMerge(registry),
       Layer.provideMerge(trunc),
+      Layer.provide(Memory.defaultLayer),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
       Layer.provideMerge(deps),

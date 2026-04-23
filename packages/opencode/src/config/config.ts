@@ -33,6 +33,7 @@ import { ConfigLayout } from "./layout"
 import { ConfigLSP } from "./lsp"
 import { ConfigManaged } from "./managed"
 import { ConfigMCP } from "./mcp"
+import { ConfigMemory } from "./memory"
 import { ConfigModelID } from "./model-id"
 import { ConfigParse } from "./parse"
 import { ConfigPaths } from "./paths"
@@ -171,6 +172,7 @@ export const Info = Schema.Struct({
         title: Schema.optional(AgentRef),
         summary: Schema.optional(AgentRef),
         compaction: Schema.optional(AgentRef),
+        memory: Schema.optional(AgentRef),
       }),
       [Schema.Record(Schema.String, AgentRef)],
     ),
@@ -188,6 +190,9 @@ export const Info = Schema.Struct({
       ]),
     ),
   ).annotate({ description: "MCP (Model Context Protocol) server configurations" }),
+  memory: Schema.optional(ConfigMemory.Info).annotate({
+    description: "Persistent memory configuration for global user memory and project-local memory",
+  }),
   formatter: Schema.optional(ConfigFormatter.Info),
   lsp: Schema.optional(ConfigLSP.Info),
   instructions: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({

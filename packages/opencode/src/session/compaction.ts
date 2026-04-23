@@ -18,6 +18,7 @@ import { InstanceState } from "@/effect"
 import { isOverflow as overflow, usable } from "./overflow"
 import { makeRuntime } from "@/effect/run-service"
 import { fn } from "@/util/fn"
+import { MemorySync } from "@/memory/sync"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -90,7 +91,8 @@ type CompletedCompaction = {
   summary: string | undefined
 }
 
-function summaryText(message: MessageV2.WithParts) {
+function summaryText(message: MessageV2.WithParts | undefined) {
+  if (!message) return
   const text = message.parts
     .filter((part): part is MessageV2.TextPart => part.type === "text")
     .map((part) => part.text.trim())
@@ -215,6 +217,7 @@ export const layer: Layer.Layer<
   | Plugin.Service
   | SessionProcessor.Service
   | Provider.Service
+  | MemorySync.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -225,6 +228,7 @@ export const layer: Layer.Layer<
     const plugin = yield* Plugin.Service
     const processors = yield* SessionProcessor.Service
     const provider = yield* Provider.Service
+    const memorySync = yield* MemorySync.Service
 
     const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
       tokens: MessageV2.Assistant["tokens"]
@@ -473,6 +477,18 @@ export const layer: Layer.Layer<
         })
       }
 
+      if (result === "continue") {
+        const updated = yield* session.messages({ sessionID: input.sessionID })
+        const summary = summaryText(updated.find((item) => item.info.id === processor.message.id))
+        yield* memorySync
+          .captureCompaction({
+            sessionID: input.sessionID,
+            model: userMessage.model,
+            summary,
+          })
+          .pipe(Effect.forkDetach)
+      }
+
       if (result === "continue" && input.auto) {
         if (replay) {
           const original = replay.info
@@ -601,6 +617,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(SessionProcessor.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Plugin.defaultLayer),
+    Layer.provide(MemorySync.defaultLayer),
     Layer.provide(Bus.layer),
     Layer.provide(Config.defaultLayer),
   ),

@@ -26,6 +26,7 @@ import { Snapshot } from "../../src/snapshot"
 import { ProviderTest } from "../fake/provider"
 import { testEffect } from "../lib/effect"
 import * as CrossSpawnSpawner from "../../src/effect/cross-spawn-spawner"
+import { MemorySync } from "../../src/memory/sync"
 
 void Log.init({ print: false })
 
@@ -55,6 +56,13 @@ const summary = Layer.succeed(
     summarize: () => Effect.void,
     diff: () => Effect.succeed([]),
     computeDiff: () => Effect.succeed([]),
+  }),
+)
+
+const memorySync = Layer.succeed(
+  MemorySync.Service,
+  MemorySync.Service.of({
+    captureCompaction: () => Effect.void,
   }),
 )
 
@@ -222,6 +230,7 @@ function runtime(
   const bus = Bus.layer
   return ManagedRuntime.make(
     Layer.mergeAll(SessionCompaction.layer, bus).pipe(
+      Layer.provide(memorySync),
       Layer.provide(provider.layer),
       Layer.provide(SessionNs.defaultLayer),
       Layer.provide(layer(result)),
@@ -238,6 +247,7 @@ const deps = Layer.mergeAll(
   layer("continue"),
   Agent.defaultLayer,
   Plugin.defaultLayer,
+  memorySync,
   Bus.layer,
   Config.defaultLayer,
 )
@@ -245,7 +255,11 @@ const deps = Layer.mergeAll(
 const env = Layer.mergeAll(
   SessionNs.defaultLayer,
   CrossSpawnSpawner.defaultLayer,
-  SessionCompaction.layer.pipe(Layer.provide(SessionNs.defaultLayer), Layer.provideMerge(deps)),
+  SessionCompaction.layer.pipe(
+    Layer.provide(memorySync),
+    Layer.provide(SessionNs.defaultLayer),
+    Layer.provideMerge(deps),
+  ),
 )
 
 const it = testEffect(env)
@@ -277,7 +291,12 @@ function liveRuntime(layer: Layer.Layer<LLM.Service>, provider = ProviderTest.fa
   const status = SessionStatus.layer.pipe(Layer.provide(bus))
   const processor = SessionProcessorModule.SessionProcessor.layer.pipe(Layer.provide(summary))
   return ManagedRuntime.make(
-    Layer.mergeAll(SessionCompaction.layer.pipe(Layer.provide(processor)), processor, bus, status).pipe(
+    Layer.mergeAll(
+      SessionCompaction.layer.pipe(Layer.provide(memorySync), Layer.provide(processor)),
+      processor,
+      bus,
+      status,
+    ).pipe(
       Layer.provide(provider.layer),
       Layer.provide(SessionNs.defaultLayer),
       Layer.provide(Snapshot.defaultLayer),

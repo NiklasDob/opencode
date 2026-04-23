@@ -24,6 +24,7 @@ import { CodeSearchTool } from "./codesearch"
 import { Flag } from "@/flag/flag"
 import { Log } from "@/util"
 import { LspTool } from "./lsp"
+import { MemoryTool } from "./memory"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "@opencode-ai/shared/util/glob"
@@ -45,6 +46,7 @@ import { Bus } from "../bus"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
+import { Memory } from "@/memory"
 
 const log = Log.create({ service: "tool.registry" })
 
@@ -76,6 +78,7 @@ export const layer: Layer.Layer<
   | Todo.Service
   | Agent.Service
   | Skill.Service
+  | Memory.Service
   | Session.Service
   | Provider.Service
   | LSP.Service
@@ -113,6 +116,7 @@ export const layer: Layer.Layer<
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
+    const memorytool = yield* MemoryTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -172,7 +176,7 @@ export const layer: Layer.Layer<
           }
         }
 
-        yield* config.get()
+        const cfg = yield* config.get()
         const questionEnabled =
           ["app", "cli", "desktop"].includes(Flag.OPENCODE_CLIENT) || Flag.OPENCODE_ENABLE_QUESTION_TOOL
 
@@ -190,6 +194,7 @@ export const layer: Layer.Layer<
           search: Tool.init(websearch),
           code: Tool.init(codesearch),
           skill: Tool.init(skilltool),
+          memory: Tool.init(memorytool),
           patch: Tool.init(patchtool),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
@@ -213,6 +218,7 @@ export const layer: Layer.Layer<
             tool.search,
             tool.code,
             tool.skill,
+            ...(cfg.memory?.enabled === false ? [] : [tool.memory]),
             tool.patch,
             ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [tool.lsp] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [tool.plan] : []),
@@ -323,6 +329,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Question.defaultLayer),
     Layer.provide(Todo.defaultLayer),
     Layer.provide(Skill.defaultLayer),
+    Layer.provide(Memory.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Session.defaultLayer),
     Layer.provide(Provider.defaultLayer),
